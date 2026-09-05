@@ -45,9 +45,6 @@ fn createConnection() -> Result<()> {
     Ok(conn)
 }
 
-//#[derive(Clone)]
-//struct AppDatabase(Arc<Mutex<Connexion>>); // new type rust pour définir une connexion mutex lock, Arc permet simplement de cloner la réf du meme objet
-
 #[derive(Clone)]
 struct AppDatabase {
     connection: Arc<Mutex<Connexion>> // callable avec db.connection.lock().unwrap()
