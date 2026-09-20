@@ -1,9 +1,5 @@
 use rusqlite::Row;
 
-/// Donnée indépendante de l'interface et du système d'exploitation.
-///
-/// Étape image : conserver `Image` et `image_path` ; les octets PNG/WebP restent
-/// dans le dossier applicatif afin que la base reste petite et administrable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClipboardEntry {
     pub id: i64,
@@ -19,6 +15,15 @@ pub struct ClipboardEntry {
 pub enum EntryKind {
     Text,
     Image,
+}
+
+impl EntryKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Text => "Text",
+            Self::Image => "Image",
+        }
+    }
 }
 
 impl ClipboardEntry {

@@ -3,8 +3,6 @@ mod support;
 use cross_platform_clipboard::{application::ClipboardService, storage::SqliteRepository};
 use support::TestDatabase;
 
-/// Acceptation automatisable une copie reste disponible après redémarrage.
-/// Le comportement UI/Wayland est validé manuellement, voir TESTING.md.
 #[test]
 fn user_can_find_a_copied_text_after_restarting_the_application() {
     let database = TestDatabase::new("acceptance");

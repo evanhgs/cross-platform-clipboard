@@ -2,7 +2,7 @@
 name = "cross-platform-clipboard"
 version = "0.1.0"
 authors = ["evan <138378166+evanhgs@users.noreply.github.com>"]
-edition = "2021"
+edition = "2026"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,13 +12,9 @@ dioxus-logger = "0.7.10"
 directories = "6.0.0"
 anyhow = "1.0.104"
 log = "0.4.34"
-open = "5.4.3"
-rusqlite = {version = "0.40.2", features = ["bundled"]}
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 tracing = "0.1.44"
-ashpd = "0.13.13"
-
-[features]
-default = ["desktop"]
-web = ["dioxus/web"]
-desktop = ["dioxus/desktop"]
-mobile = ["dioxus/mobile"]
+arboard = "3.6.1"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+sha2 = "0.10.9"
+tokio = { version = "1.53.1", features = ["time"] }

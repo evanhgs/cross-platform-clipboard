@@ -2,8 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Base isolée pour les tests : aucune donnée personnelle n'est lue ou modifiée.
 pub struct TestDatabase {
+    directory: PathBuf,
     path: PathBuf,
 }
 
@@ -13,11 +13,14 @@ impl TestDatabase {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "cross-platform-clipboard-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&directory).unwrap();
         Self {
-            path: std::env::temp_dir().join(format!(
-                "cross-platform-clipboard-{label}-{}-{nonce}.sqlite3",
-                std::process::id()
-            )),
+            path: directory.join("history.sqlite3"),
+            directory,
         }
     }
 
@@ -28,8 +31,6 @@ impl TestDatabase {
 
 impl Drop for TestDatabase {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
-        let _ = fs::remove_file(self.path.with_extension("sqlite3-wal"));
-        let _ = fs::remove_file(self.path.with_extension("sqlite3-shm"));
+        let _ = fs::remove_dir_all(&self.directory);
     }
 }

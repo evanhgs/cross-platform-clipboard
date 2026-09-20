@@ -3,20 +3,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::domain::ClipboardEntry;
 
-/// Étapes pour avancer :
-/// 1. Ouvrir ce dépôt une seule fois au démarrage dans un worker dédié.
-/// 2. Envoyer des commandes au worker (`SaveText`, `ListRecent`, `Delete`) via
-///    un canal plutôt que partager `Connection` dans un singleton global.
-/// 3. Brancher `ClipboardService::record_text` sur l'observateur clipboard.
-/// 4. Ajouter les images comme fichiers dans `images/` : ne stocker ici que
-///    leur chemin, leur hash et leurs métadonnées.
 pub struct SqliteRepository {
     connection: Connection,
     database_path: PathBuf,
+    images_dir: PathBuf,
 }
 
 impl SqliteRepository {
@@ -26,20 +20,22 @@ impl SqliteRepository {
 
         let data_dir = project_dirs.data_local_dir();
         fs::create_dir_all(data_dir)?;
-        fs::create_dir_all(data_dir.join("images"))?;
-
-        Self::open_at(data_dir.join("clipboard.sqlite3"))
+        Self::open_with_paths(data_dir.join("clipboard.sqlite3"), data_dir.join("images"))
     }
-
-    /// Ouvre une base à un emplacement explicite.
-    ///
-    /// Cette fonction existe aussi pour les tests d'intégration : chaque test
-    /// obtient sa propre base temporaire et ne touche jamais à l'historique réel.
     pub fn open_at(database_path: impl AsRef<Path>) -> Result<Self> {
         let database_path = database_path.as_ref().to_path_buf();
+        let images_dir = database_path
+            .parent()
+            .context("database path has no parent directory")?
+            .join("images");
+        Self::open_with_paths(database_path, images_dir)
+    }
+
+    fn open_with_paths(database_path: PathBuf, images_dir: PathBuf) -> Result<Self> {
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)?;
         }
+        fs::create_dir_all(&images_dir)?;
 
         let conn = Connection::open(&database_path)?;
         conn.execute_batch(
@@ -69,6 +65,7 @@ impl SqliteRepository {
         Ok(Self {
             connection: conn,
             database_path,
+            images_dir,
         })
     }
 
@@ -76,10 +73,32 @@ impl SqliteRepository {
         &self.database_path
     }
 
+    pub fn images_dir(&self) -> &PathBuf {
+        &self.images_dir
+    }
+
+    pub fn contains_hash(&self, content_hash: &str) -> Result<bool> {
+        let exists: i64 = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM clipboard_entries WHERE content_hash = ?1)",
+            [content_hash],
+            |row| row.get(0),
+        )?;
+        Ok(exists != 0)
+    }
+
     pub fn insert_text(&self, text: &str, content_hash: &str) -> Result<()> {
         self.connection.execute(
             "INSERT INTO clipboard_entries (content_type, text_content, content_hash) VALUES ('text', ?1, ?2)",
             params![text, content_hash],
+        )?;
+        self.remove_old_unpinned_entries(200)?;
+        Ok(())
+    }
+
+    pub fn insert_image(&self, image_path: &Path, content_hash: &str) -> Result<()> {
+        self.connection.execute(
+            "INSERT INTO clipboard_entries (content_type, image_path, content_hash) VALUES ('image', ?1, ?2)",
+            params![image_path.to_string_lossy(), content_hash],
         )?;
         self.remove_old_unpinned_entries(200)?;
         Ok(())
@@ -108,5 +127,42 @@ impl SqliteRepository {
             [maximum],
         )?;
         Ok(())
+    }
+
+    pub fn delete_entry(&self, id: i64) -> Result<Option<PathBuf>> {
+        let image_path = self
+            .connection
+            .query_row(
+                "SELECT image_path FROM clipboard_entries WHERE id = ?1",
+                [id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?;
+        self.connection
+            .execute("DELETE FROM clipboard_entries WHERE id = ?1", [id])?;
+        Ok(image_path.flatten().map(PathBuf::from))
+    }
+
+    pub fn toggle_pinned(&self, id: i64) -> Result<()> {
+        self.connection.execute(
+            "UPDATE clipboard_entries SET pinned = CASE pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?1",
+            [id],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_unpinned(&self) -> Result<Vec<PathBuf>> {
+        let mut statement = self.connection.prepare(
+            "SELECT image_path FROM clipboard_entries WHERE pinned = 0 AND image_path IS NOT NULL",
+        )?;
+        let paths = statement
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?
+            .into_iter()
+            .map(PathBuf::from)
+            .collect();
+        self.connection
+            .execute("DELETE FROM clipboard_entries WHERE pinned = 0", [])?;
+        Ok(paths)
     }
 }
