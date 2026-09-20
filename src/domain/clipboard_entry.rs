@@ -46,3 +46,26 @@ impl ClipboardEntry {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::Connection;
+
+    use super::{ClipboardEntry, EntryKind};
+
+    #[test]
+    fn parses_a_text_entry_from_sqlite() {
+        let connection = Connection::open_in_memory().unwrap();
+        let entry = connection
+            .query_row(
+                "SELECT 1, 'text', 'bonjour', NULL, 'hash', 0, 123",
+                [],
+                ClipboardEntry::from_row,
+            )
+            .unwrap();
+
+        assert_eq!(entry.kind, EntryKind::Text);
+        assert_eq!(entry.text.as_deref(), Some("bonjour"));
+        assert!(!entry.pinned);
+    }
+}

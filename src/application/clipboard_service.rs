@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::hash::{Hash, Hasher};
 
+use crate::domain::ClipboardEntry;
 use crate::storage::SqliteRepository;
 
 /// Orchestration des actions métier, sans dépendre de Dioxus ou de Wayland.
@@ -26,6 +27,10 @@ impl ClipboardService {
 
         self.repository.insert_text(text, &hash_text(text))
     }
+
+    pub fn recent_entries(&self, limit: usize) -> Result<Vec<ClipboardEntry>> {
+        self.repository.list_recent(limit)
+    }
 }
 
 fn hash_text(text: &str) -> String {
@@ -34,4 +39,19 @@ fn hash_text(text: &str) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     text.hash(&mut hasher);
     format!("{:x}", hasher.finish())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hash_text;
+
+    #[test]
+    fn hash_is_deterministic_for_the_same_text() {
+        assert_eq!(hash_text("bonjour"), hash_text("bonjour"));
+    }
+
+    #[test]
+    fn hash_changes_when_text_changes() {
+        assert_ne!(hash_text("bonjour"), hash_text("au revoir"));
+    }
 }

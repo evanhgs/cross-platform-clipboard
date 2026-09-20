@@ -1,12 +1,11 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use rusqlite::{params, Connection};
 
 use crate::domain::ClipboardEntry;
-
 
 /// Étapes pour avancer :
 /// 1. Ouvrir ce dépôt une seule fois au démarrage dans un worker dédié.
@@ -29,8 +28,20 @@ impl SqliteRepository {
         fs::create_dir_all(data_dir)?;
         fs::create_dir_all(data_dir.join("images"))?;
 
-        let db_path = data_dir.join("clipboard.sqlite3");
-        let conn = Connection::open(db_path)?;
+        Self::open_at(data_dir.join("clipboard.sqlite3"))
+    }
+
+    /// Ouvre une base à un emplacement explicite.
+    ///
+    /// Cette fonction existe aussi pour les tests d'intégration : chaque test
+    /// obtient sa propre base temporaire et ne touche jamais à l'historique réel.
+    pub fn open_at(database_path: impl AsRef<Path>) -> Result<Self> {
+        let database_path = database_path.as_ref().to_path_buf();
+        if let Some(parent) = database_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let conn = Connection::open(&database_path)?;
         conn.execute_batch(
             r#"
             PRAGMA foreign_keys = ON;
@@ -57,7 +68,7 @@ impl SqliteRepository {
 
         Ok(Self {
             connection: conn,
-            database_path: data_dir.join("clipboard.sqlite3"),
+            database_path,
         })
     }
 
@@ -75,9 +86,10 @@ impl SqliteRepository {
     }
 
     pub fn list_recent(&self, limit: usize) -> Result<Vec<ClipboardEntry>> {
+        let limit = i64::try_from(limit).context("limit is too large for SQLite")?;
         let mut statement = self.connection.prepare(
             "SELECT id, content_type, text_content, image_path, content_hash, pinned, created_at
-             FROM clipboard_entries ORDER BY pinned DESC, created_at DESC LIMIT ?1",
+             FROM clipboard_entries ORDER BY pinned DESC, created_at DESC, id DESC LIMIT ?1",
         )?;
         let entries = statement.query_map([limit], ClipboardEntry::from_row)?;
         entries
@@ -86,11 +98,12 @@ impl SqliteRepository {
     }
 
     fn remove_old_unpinned_entries(&self, maximum: usize) -> Result<()> {
+        let maximum = i64::try_from(maximum).context("entry limit is too large for SQLite")?;
         self.connection.execute(
             "DELETE FROM clipboard_entries
              WHERE id IN (
                 SELECT id FROM clipboard_entries WHERE pinned = 0
-                ORDER BY created_at DESC LIMIT -1 OFFSET ?1
+                ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?1
              )",
             [maximum],
         )?;
