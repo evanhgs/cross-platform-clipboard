@@ -2,7 +2,7 @@
 name = "cross-platform-clipboard"
 version = "0.1.0"
 authors = ["evan <138378166+evanhgs@users.noreply.github.com>"]
-edition = "2026"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
