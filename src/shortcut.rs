@@ -6,7 +6,12 @@ use anyhow::{Context, Result};
 use dioxus::desktop::tao::window::Window;
 
 #[cfg(target_os = "linux")]
-use std::{fs, os::unix::net::{UnixListener, UnixStream}, process::Command, thread};
+use std::{
+    fs,
+    os::unix::net::{UnixListener, UnixStream},
+    process::Command,
+    thread,
+};
 
 static WINDOW: OnceLock<Arc<Window>> = OnceLock::new();
 static SOCKET_STARTED: OnceLock<()> = OnceLock::new();
@@ -26,7 +31,9 @@ pub fn request_show() -> bool {
             .is_ok()
     }
     #[cfg(not(target_os = "linux"))]
-    { false }
+    {
+        false
+    }
 }
 
 pub fn show_window() {
@@ -45,22 +52,47 @@ pub fn hide_window() {
 pub fn sync_gnome_shortcut() -> Result<()> {
     #[cfg(target_os = "linux")]
     {
-        if !std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_ascii_lowercase().contains("gnome") {
+        if !std::env::var("XDG_CURRENT_DESKTOP")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .contains("gnome")
+        {
             return Ok(());
         }
-        let path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/com-evan-clipboard/";
+        let path =
+            "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/com-evan-clipboard/";
         let schema = "org.gnome.settings-daemon.plugins.media-keys";
-        let output = Command::new("gsettings").args(["get", schema, "custom-keybindings"]).output()
+        let output = Command::new("gsettings")
+            .args(["get", schema, "custom-keybindings"])
+            .output()
             .context("unable to inspect GNOME custom shortcuts")?;
         let existing = String::from_utf8_lossy(&output.stdout);
-        let list = if existing.contains(path) { existing.trim().to_owned() } else {
-            let entries = existing.trim().trim_start_matches('[').trim_end_matches(']');
-            format!("[{}'{}']", if entries.trim().is_empty() { String::new() } else { format!("{entries}, ") }, path)
+        let list = if existing.contains(path) {
+            existing.trim().to_owned()
+        } else {
+            let entries = existing
+                .trim()
+                .trim_start_matches('[')
+                .trim_end_matches(']');
+            format!(
+                "[{}'{}']",
+                if entries.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("{entries}, ")
+                },
+                path
+            )
         };
         run_gsettings(&["set", schema, "custom-keybindings", &list])?;
-        let item_schema = format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}");
-        let executable = std::env::current_exe().context("unable to determine executable for GNOME shortcut")?;
-        let command = format!("'{}' --show", executable.display().to_string().replace('\'', "'\\''"));
+        let item_schema =
+            format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{path}");
+        let executable =
+            std::env::current_exe().context("unable to determine executable for GNOME shortcut")?;
+        let command = format!(
+            "'{}' --show",
+            executable.display().to_string().replace('\'', "'\\''")
+        );
         run_gsettings(&["set", &item_schema, "name", "Clipboard"])?;
         run_gsettings(&["set", &item_schema, "command", &command])?;
         run_gsettings(&["set", &item_schema, "binding", "<Control><Alt>c"])?;
@@ -76,11 +108,18 @@ fn start_show_socket() -> Result<()> {
             let _ = SOCKET_STARTED.set(());
             return Ok(());
         }
-        if path.exists() { fs::remove_file(&path).context("unable to clear stale show socket")?; }
-        let listener = UnixListener::bind(&path).context("unable to start background show listener")?;
-        thread::spawn(move || for mut stream in listener.incoming().flatten() {
-            let mut command = [0; 4];
-            if stream.read_exact(&mut command).is_ok() && &command == b"show" { show_window(); }
+        if path.exists() {
+            fs::remove_file(&path).context("unable to clear stale show socket")?;
+        }
+        let listener =
+            UnixListener::bind(&path).context("unable to start background show listener")?;
+        thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let mut command = [0; 4];
+                if stream.read_exact(&mut command).is_ok() && &command == b"show" {
+                    show_window();
+                }
+            }
         });
         let _ = SOCKET_STARTED.set(());
     }
@@ -95,6 +134,16 @@ fn show_socket_path() -> PathBuf {
 
 #[cfg(target_os = "linux")]
 fn run_gsettings(args: &[&str]) -> Result<()> {
-    let output = Command::new("gsettings").args(args).output().context("unable to run gsettings")?;
-    if output.status.success() { Ok(()) } else { anyhow::bail!("GNOME shortcut setup failed: {}", String::from_utf8_lossy(&output.stderr).trim()) }
+    let output = Command::new("gsettings")
+        .args(args)
+        .output()
+        .context("unable to run gsettings")?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "GNOME shortcut setup failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+    }
 }

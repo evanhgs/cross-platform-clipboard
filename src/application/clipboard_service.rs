@@ -6,7 +6,6 @@ use crate::storage::SqliteRepository;
 use image::RgbaImage;
 use sha2::{Digest, Sha256};
 
-
 pub struct ClipboardService {
     repository: SqliteRepository,
 }

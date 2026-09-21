@@ -41,14 +41,15 @@ pub fn App() -> Element {
         _ => {}
     });
     let entries = use_signal(Vec::new);
-    let mut status = use_signal(String::new);
+    let status = use_signal(String::new);
+    let notification_id = use_signal(|| 0_u64);
     let mut page = use_signal(|| Page::History);
     let initial_settings = Settings::load().unwrap_or_else(|_| Settings::default());
     let mut start_at_login = use_signal(|| initial_settings.start_at_login);
 
     use_future(move || async move {
         loop {
-            refresh_history(entries, status);
+            refresh_history(entries, status, notification_id);
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     });
@@ -71,10 +72,10 @@ pub fn App() -> Element {
                         class: "secondary",
                         onclick: move |_| {
                             match capture_image() {
-                                Ok(()) => status.set("Image saved".into()),
-                                Err(error) => status.set(format!("Image error: {error}")),
+                                Ok(()) => show_toast(status, notification_id, "Image saved"),
+                                Err(error) => show_toast(status, notification_id, format!("Image error: {error}")),
                             }
-                            refresh_history(entries, status);
+                            refresh_history(entries, status, notification_id);
                         },
                         "Save image"
                     }
@@ -82,10 +83,10 @@ pub fn App() -> Element {
                         class: "danger",
                         onclick: move |_| {
                             match open_service().and_then(|service| service.clear_unpinned()) {
-                                Ok(()) => status.set("History cleared".into()),
-                                Err(error) => status.set(format!("Clear error: {error}")),
+                                Ok(()) => show_toast(status, notification_id, "History cleared"),
+                                Err(error) => show_toast(status, notification_id, format!("Clear error: {error}")),
                             }
-                            refresh_history(entries, status);
+                            refresh_history(entries, status, notification_id);
                         },
                         "Clear"
                     }
@@ -112,7 +113,7 @@ pub fn App() -> Element {
                 }
             }
             if !status.read().is_empty() {
-                p { class: "status", "{status}" }
+                aside { class: "toast", role: "status", "aria-live": "polite", "{status}" }
             }
             match page() {
                 Page::Settings => rsx! {
@@ -122,8 +123,8 @@ pub fn App() -> Element {
                         on_save: move |_| {
                             let settings = Settings { start_at_login: start_at_login() };
                             match settings.save().and_then(|_| autostart::sync(settings.start_at_login)) {
-                                Ok(()) => status.set(if settings.start_at_login { "Autostart enabled".into() } else { "Autostart disabled".into() }),
-                                Err(error) => status.set(format!("Autostart error: {error}")),
+                                Ok(()) => show_toast(status, notification_id, if settings.start_at_login { "Autostart enabled" } else { "Autostart disabled" }),
+                                Err(error) => show_toast(status, notification_id, format!("Autostart error: {error}")),
                             }
                         },
                     }
@@ -136,29 +137,29 @@ pub fn App() -> Element {
                             empty_message: if page() == Page::Pinned { "No pinned items yet." } else { "Just copy with Ctrl + C or Cmd + C" },
                             on_copy: move |text: String| {
                                 match copy_text(&text) {
-                                    Ok(()) => status.set("Text copied".into()),
-                                    Err(error) => status.set(format!("Copy error: {error}")),
+                                    Ok(()) => show_toast(status, notification_id, "Text copied"),
+                                    Err(error) => show_toast(status, notification_id, format!("Copy error: {error}")),
                                 }
                             },
                             on_copy_image: move |path: String| {
                                 match copy_image(std::path::Path::new(&path)) {
-                                    Ok(()) => status.set("Image copied".into()),
-                                    Err(error) => status.set(format!("Copy error: {error}")),
+                                    Ok(()) => show_toast(status, notification_id, "Image copied"),
+                                    Err(error) => show_toast(status, notification_id, format!("Copy error: {error}")),
                                 }
                             },
                             on_delete: move |id: i64| {
                                 match open_service().and_then(|service| service.delete_entry(id)) {
-                                    Ok(()) => status.set("Item deleted".into()),
-                                    Err(error) => status.set(format!("Delete error: {error}")),
+                                    Ok(()) => show_toast(status, notification_id, "Item deleted"),
+                                    Err(error) => show_toast(status, notification_id, format!("Delete error: {error}")),
                                 }
-                                refresh_history(entries, status);
+                                refresh_history(entries, status, notification_id);
                             },
                             on_toggle_pin: move |id: i64| {
                                 match open_service().and_then(|service| service.toggle_pinned(id)) {
-                                    Ok(()) => status.set("Pin updated".into()),
-                                    Err(error) => status.set(format!("Update error: {error}")),
+                                    Ok(()) => show_toast(status, notification_id, "Pin updated"),
+                                    Err(error) => show_toast(status, notification_id, format!("Update error: {error}")),
                                 }
-                                refresh_history(entries, status);
+                                refresh_history(entries, status, notification_id);
                             },
                         }
                     }
@@ -174,11 +175,29 @@ fn open_service() -> anyhow::Result<ClipboardService> {
 
 fn refresh_history(
     mut entries: Signal<Vec<crate::domain::ClipboardEntry>>,
-    mut status: Signal<String>,
+    status: Signal<String>,
+    notification_id: Signal<u64>,
 ) {
     match open_service().and_then(|service| service.recent_entries(200)) {
         Ok(history) if *entries.read() != history => entries.set(history),
         Ok(_) => {}
-        Err(error) => status.set(format!("History error: {error}")),
+        Err(error) => show_toast(status, notification_id, format!("History error: {error}")),
     }
+}
+
+fn show_toast(
+    mut status: Signal<String>,
+    mut notification_id: Signal<u64>,
+    message: impl Into<String>,
+) {
+    let id = notification_id() + 1;
+    notification_id.set(id);
+    status.set(message.into());
+
+    spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        if notification_id() == id {
+            status.set(String::new());
+        }
+    });
 }

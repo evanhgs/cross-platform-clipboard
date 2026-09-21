@@ -13,6 +13,19 @@ button { margin: 2px; }
 }
 
 .toolbar { justify-content: space-between; }
+.toast {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 10;
+    max-width: min(360px, calc(100vw - 32px));
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #1f2937;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    color: #fff;
+}
 .page-navigation {
     display: flex;
     gap: 4px;

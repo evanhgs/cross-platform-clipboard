@@ -8,7 +8,6 @@ use arboard::Clipboard;
 use crate::application::ClipboardService;
 use crate::storage::SqliteRepository;
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClipboardContent {
     Text(String),

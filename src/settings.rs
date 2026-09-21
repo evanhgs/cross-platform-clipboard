@@ -40,7 +40,6 @@ impl Settings {
         fs::write(&path, toml::to_string_pretty(self)?)
             .with_context(|| format!("unable to write settings at {}", path.display()))
     }
-
 }
 
 pub fn settings_path() -> Result<PathBuf> {
