@@ -1,9 +1,21 @@
 [application]
+name = "Clipboard History"
 
 [web.app]
 
 # HTML title tag content
 title = "cross-platform-clipboard"
+
+[bundle]
+identifier = "fr.evan.clipboard-history"
+publisher = "Evan"
+icon = ["assets/clipboard-logo.png"]
+category = "Utility"
+short_description = "Local clipboard history for every os"
+long_description = "A local desktop application for browsing and restoring clipboard history without ai and internet shitiest things, just strict minimalist software that display copied texts AND works on linux (wayland & X11), windows and macos... Yes macos, please forgive me daddy"
+
+[bundle.deb]
+depends = ["libgtk-3-0", "libwebkit2gtk-4.1-0", "libayatana-appindicator3-1"]
 
 # include `assets` in web platform
 [web.resource]
