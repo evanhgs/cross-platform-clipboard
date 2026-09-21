@@ -54,4 +54,11 @@ jobs:
         run: |
           mapfile -t packages < <(find target/dx -type f \( -name '*.deb' -o -name '*.AppImage' \))
           test "${#packages[@]}" -gt 0
-          gh release create "$TAG" "${packages[@]}" --generate-notes --title "Clipboard History $TAG"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${packages[@]}" --clobber
+          else
+            gh release create "$TAG" \
+              "${packages[@]}" \
+              --generate-notes \
+              --title "Clipboard History $TAG"
+          fi
