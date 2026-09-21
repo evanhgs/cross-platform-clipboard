@@ -18,3 +18,5 @@ arboard = "3.6.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 sha2 = "0.10.9"
 tokio = { version = "1.53.1", features = ["time"] }
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.9.11"

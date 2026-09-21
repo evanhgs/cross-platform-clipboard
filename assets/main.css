@@ -13,8 +13,84 @@ button { margin: 2px; }
 }
 
 .toolbar { justify-content: space-between; }
+.page-navigation {
+    display: flex;
+    gap: 4px;
+    margin: 16px 0 8px;
+    border-bottom: 1px solid #d8dce5;
+}
+
+.nav-button {
+    margin: 0;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: #50596b;
+    cursor: pointer;
+}
+
+.nav-button:hover { color: #1f2937; background: #f4f6f9; }
+.nav-button.active { border-bottom-color: #2f855a; color: #1f5f3b; font-weight: 600; }
+.history-page, .settings-page { margin-top: 16px; }
+.history-page h2, .settings-page h2 { margin: 0; font-size: 1.1rem; }
+.page-description { margin: 6px 0 12px; color: #50596b; }
 .history-panel { margin-top: 16px; }
 .history-entry { margin: 8px 0; }
+
+.entry-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.entry-actions { flex-wrap: nowrap; }
+
+.icon-button {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    padding: 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.icon-button:hover { background: #eef1f5; }
+.icon-button img { display: block; width: 18px; height: 18px; object-fit: contain; }
+.pin-button img { transform: rotate(-18deg); }
+.danger:hover { background: #fff0f0; }
+
+.settings {
+    margin: 16px 0;
+    padding: 12px;
+}
+
+.settings h3 { margin: 0; font-size: 1rem; }
+.settings p { margin: 6px 0 12px; color: #50596b; }
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.settings-row input {
+    min-width: 12rem;
+    padding: 6px 8px;
+    border: 1px solid #bfc7d6;
+    border-radius: 6px;
+}
+
+.autostart-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+}
 
 .entry-text {
     display: block;
