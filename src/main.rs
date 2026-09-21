@@ -1,10 +1,28 @@
 use cross_platform_clipboard::ui::App;
 use cross_platform_clipboard::{autostart, settings::Settings, shortcut};
+use std::backtrace::Backtrace;
 use std::time::Duration;
 use tracing::Level;
 
 fn main() {
-    dioxus::logger::init(Level::INFO).expect("failed to init logger");
+    if cfg!(debug_assertions) {
+        std::panic::set_hook(Box::new(|panic_info| {
+            eprintln!(
+                "Clipboard panic: {panic_info}\n{}",
+                Backtrace::force_capture()
+            );
+        }));
+    }
+    let log_level = if cfg!(debug_assertions) {
+        Level::TRACE
+    } else {
+        Level::INFO
+    };
+    dioxus::logger::init(log_level).expect("failed to init logger");
+    tracing::info!(
+        ?log_level,
+        "Clipboard starting; terminal diagnostics enabled"
+    );
     if std::env::args().any(|arg| arg == "--show") && shortcut::request_show() {
         return;
     }

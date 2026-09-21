@@ -20,7 +20,9 @@ impl SqliteRepository {
 
         let data_dir = project_dirs.data_local_dir();
         fs::create_dir_all(data_dir)?;
-        Self::open_with_paths(data_dir.join("clipboard.sqlite3"), data_dir.join("images"))
+        let database_path = data_dir.join("clipboard.sqlite3");
+        tracing::debug!(database = %database_path.display(), "opening clipboard SQLite database");
+        Self::open_with_paths(database_path, data_dir.join("images"))
     }
     pub fn open_at(database_path: impl AsRef<Path>) -> Result<Self> {
         let database_path = database_path.as_ref().to_path_buf();
@@ -32,6 +34,7 @@ impl SqliteRepository {
     }
 
     fn open_with_paths(database_path: PathBuf, images_dir: PathBuf) -> Result<Self> {
+        tracing::trace!(database = %database_path.display(), images_dir = %images_dir.display(), "initializing SQLite repository");
         if let Some(parent) = database_path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -78,6 +81,7 @@ impl SqliteRepository {
     }
 
     pub fn contains_hash(&self, content_hash: &str) -> Result<bool> {
+        tracing::trace!(content_hash, "querying clipboard entry hash");
         let exists: i64 = self.connection.query_row(
             "SELECT EXISTS(SELECT 1 FROM clipboard_entries WHERE content_hash = ?1)",
             [content_hash],
@@ -87,6 +91,11 @@ impl SqliteRepository {
     }
 
     pub fn insert_text(&self, text: &str, content_hash: &str) -> Result<()> {
+        tracing::trace!(
+            text_length = text.len(),
+            content_hash,
+            "inserting text clipboard entry"
+        );
         self.connection.execute(
             "INSERT INTO clipboard_entries (content_type, text_content, content_hash) VALUES ('text', ?1, ?2)",
             params![text, content_hash],
@@ -96,6 +105,7 @@ impl SqliteRepository {
     }
 
     pub fn insert_image(&self, image_path: &Path, content_hash: &str) -> Result<()> {
+        tracing::trace!(image_path = %image_path.display(), content_hash, "inserting image clipboard entry");
         self.connection.execute(
             "INSERT INTO clipboard_entries (content_type, image_path, content_hash) VALUES ('image', ?1, ?2)",
             params![image_path.to_string_lossy(), content_hash],
@@ -105,6 +115,7 @@ impl SqliteRepository {
     }
 
     pub fn list_recent(&self, limit: usize) -> Result<Vec<ClipboardEntry>> {
+        tracing::trace!(limit, "querying recent clipboard entries");
         let limit = i64::try_from(limit).context("limit is too large for SQLite")?;
         let mut statement = self.connection.prepare(
             "SELECT id, content_type, text_content, image_path, content_hash, pinned, created_at
@@ -117,6 +128,7 @@ impl SqliteRepository {
     }
 
     fn remove_old_unpinned_entries(&self, maximum: usize) -> Result<()> {
+        tracing::trace!(maximum, "removing expired unpinned clipboard entries");
         let maximum = i64::try_from(maximum).context("entry limit is too large for SQLite")?;
         self.connection.execute(
             "DELETE FROM clipboard_entries
@@ -130,6 +142,7 @@ impl SqliteRepository {
     }
 
     pub fn delete_entry(&self, id: i64) -> Result<Option<PathBuf>> {
+        tracing::trace!(id, "deleting clipboard entry from SQLite");
         let image_path = self
             .connection
             .query_row(
@@ -144,6 +157,7 @@ impl SqliteRepository {
     }
 
     pub fn toggle_pinned(&self, id: i64) -> Result<()> {
+        tracing::trace!(id, "updating clipboard entry pin in SQLite");
         self.connection.execute(
             "UPDATE clipboard_entries SET pinned = CASE pinned WHEN 0 THEN 1 ELSE 0 END WHERE id = ?1",
             [id],
@@ -152,6 +166,7 @@ impl SqliteRepository {
     }
 
     pub fn clear_unpinned(&self) -> Result<Vec<PathBuf>> {
+        tracing::trace!("deleting unpinned clipboard entries from SQLite");
         let mut statement = self.connection.prepare(
             "SELECT image_path FROM clipboard_entries WHERE pinned = 0 AND image_path IS NOT NULL",
         )?;

@@ -1,6 +1,7 @@
 pub mod application;
 pub mod autostart;
 pub mod clipboard;
+pub mod diagnostics;
 pub mod domain;
 pub mod settings;
 pub mod shortcut;

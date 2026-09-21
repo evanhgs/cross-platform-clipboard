@@ -18,17 +18,21 @@ impl ClipboardService {
     pub fn record_text(&self, text: &str) -> Result<()> {
         let text = text.trim();
         if text.is_empty() {
+            tracing::debug!("ignoring empty clipboard text");
             return Ok(());
         }
 
         let hash = content_hash(text.as_bytes());
         if self.repository.contains_hash(&hash)? {
+            tracing::debug!(text_length = text.len(), content_hash = %hash, "clipboard text already exists");
             return Ok(());
         }
+        tracing::debug!(text_length = text.len(), content_hash = %hash, "recording clipboard text");
         self.repository.insert_text(text, &hash)
     }
 
     pub fn recent_entries(&self, limit: usize) -> Result<Vec<ClipboardEntry>> {
+        tracing::trace!(limit, "loading recent clipboard entries");
         self.repository.list_recent(limit)
     }
 
@@ -39,17 +43,21 @@ impl ClipboardService {
         hash_input.extend_from_slice(&rgba);
         let hash = content_hash(&hash_input);
         if self.repository.contains_hash(&hash)? {
+            tracing::debug!(width, height, content_hash = %hash, "clipboard image already exists");
             return Ok(());
         }
 
+        let byte_length = rgba.len();
         let image = RgbaImage::from_raw(width, height, rgba)
             .context("clipboard image dimensions do not match its pixels")?;
         let image_path = self.repository.images_dir().join(format!("{hash}.png"));
+        tracing::debug!(width, height, byte_length, image_path = %image_path.display(), "recording clipboard image");
         image.save(&image_path)?;
         self.repository.insert_image(&image_path, &hash)
     }
 
     pub fn delete_entry(&self, id: i64) -> Result<()> {
+        tracing::debug!(id, "deleting clipboard entry");
         if let Some(path) = self.repository.delete_entry(id)? {
             let _ = fs::remove_file(path);
         }
@@ -57,10 +65,12 @@ impl ClipboardService {
     }
 
     pub fn toggle_pinned(&self, id: i64) -> Result<()> {
+        tracing::debug!(id, "toggling clipboard entry pin");
         self.repository.toggle_pinned(id)
     }
 
     pub fn clear_unpinned(&self) -> Result<()> {
+        tracing::debug!("clearing unpinned clipboard entries");
         for path in self.repository.clear_unpinned()? {
             let _ = fs::remove_file(path);
         }

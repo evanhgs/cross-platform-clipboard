@@ -71,9 +71,13 @@ pub fn App() -> Element {
                     button {
                         class: "secondary",
                         onclick: move |_| {
+                            tracing::debug!(action = "capture_image", "UI action requested");
                             match capture_image() {
                                 Ok(()) => show_toast(status, notification_id, "Image saved"),
-                                Err(error) => show_toast(status, notification_id, format!("Image error: {error}")),
+                                Err(error) => {
+                                    crate::diagnostics::report_error("capture clipboard image", &error);
+                                    show_toast(status, notification_id, format!("Image error: {error}"));
+                                }
                             }
                             refresh_history(entries, status, notification_id);
                         },
@@ -82,9 +86,13 @@ pub fn App() -> Element {
                     button {
                         class: "danger",
                         onclick: move |_| {
+                            tracing::debug!(action = "clear_history", "UI action requested");
                             match open_service().and_then(|service| service.clear_unpinned()) {
                                 Ok(()) => show_toast(status, notification_id, "History cleared"),
-                                Err(error) => show_toast(status, notification_id, format!("Clear error: {error}")),
+                                Err(error) => {
+                                    crate::diagnostics::report_error("clear clipboard history", &error);
+                                    show_toast(status, notification_id, format!("Clear error: {error}"));
+                                }
                             }
                             refresh_history(entries, status, notification_id);
                         },
@@ -96,19 +104,19 @@ pub fn App() -> Element {
                 button {
                     class: if page() == Page::History { "nav-button active" } else { "nav-button" },
                     "aria-current": if page() == Page::History { "page" } else { "false" },
-                    onclick: move |_| page.set(Page::History),
+                    onclick: move |_| { tracing::debug!(page = "history", "UI navigation requested"); page.set(Page::History) },
                     "History"
                 }
                 button {
                     class: if page() == Page::Pinned { "nav-button active" } else { "nav-button" },
                     "aria-current": if page() == Page::Pinned { "page" } else { "false" },
-                    onclick: move |_| page.set(Page::Pinned),
+                    onclick: move |_| { tracing::debug!(page = "pinned", "UI navigation requested"); page.set(Page::Pinned) },
                     "Pinned"
                 }
                 button {
                     class: if page() == Page::Settings { "nav-button active" } else { "nav-button" },
                     "aria-current": if page() == Page::Settings { "page" } else { "false" },
-                    onclick: move |_| page.set(Page::Settings),
+                    onclick: move |_| { tracing::debug!(page = "settings", "UI navigation requested"); page.set(Page::Settings) },
                     "Settings"
                 }
             }
@@ -121,10 +129,14 @@ pub fn App() -> Element {
                         start_at_login: start_at_login(),
                         on_start_at_login_change: move |enabled| start_at_login.set(enabled),
                         on_save: move |_| {
+                            tracing::debug!(action = "save_startup_setting", enabled = start_at_login(), "UI action requested");
                             let settings = Settings { start_at_login: start_at_login() };
                             match settings.save().and_then(|_| autostart::sync(settings.start_at_login)) {
                                 Ok(()) => show_toast(status, notification_id, if settings.start_at_login { "Autostart enabled" } else { "Autostart disabled" }),
-                                Err(error) => show_toast(status, notification_id, format!("Autostart error: {error}")),
+                                Err(error) => {
+                                    crate::diagnostics::report_error("save startup setting", &error);
+                                    show_toast(status, notification_id, format!("Autostart error: {error}"));
+                                }
                             }
                         },
                     }
@@ -136,28 +148,44 @@ pub fn App() -> Element {
                             entries: if page() == Page::Pinned { pinned_entries } else { visible_entries },
                             empty_message: if page() == Page::Pinned { "No pinned items yet." } else { "Just copy with Ctrl + C or Cmd + C" },
                             on_copy: move |text: String| {
+                                tracing::debug!(action = "copy_text", text_length = text.len(), "UI action requested");
                                 match copy_text(&text) {
                                     Ok(()) => show_toast(status, notification_id, "Text copied"),
-                                    Err(error) => show_toast(status, notification_id, format!("Copy error: {error}")),
+                                    Err(error) => {
+                                        crate::diagnostics::report_error("copy clipboard text", &error);
+                                        show_toast(status, notification_id, format!("Copy error: {error}"));
+                                    }
                                 }
                             },
                             on_copy_image: move |path: String| {
+                                tracing::debug!(action = "copy_image", path = %path, "UI action requested");
                                 match copy_image(std::path::Path::new(&path)) {
                                     Ok(()) => show_toast(status, notification_id, "Image copied"),
-                                    Err(error) => show_toast(status, notification_id, format!("Copy error: {error}")),
+                                    Err(error) => {
+                                        crate::diagnostics::report_error("copy clipboard image", &error);
+                                        show_toast(status, notification_id, format!("Copy error: {error}"));
+                                    }
                                 }
                             },
                             on_delete: move |id: i64| {
+                                tracing::debug!(action = "delete_entry", id, "UI action requested");
                                 match open_service().and_then(|service| service.delete_entry(id)) {
                                     Ok(()) => show_toast(status, notification_id, "Item deleted"),
-                                    Err(error) => show_toast(status, notification_id, format!("Delete error: {error}")),
+                                    Err(error) => {
+                                        crate::diagnostics::report_error("delete clipboard entry", &error);
+                                        show_toast(status, notification_id, format!("Delete error: {error}"));
+                                    }
                                 }
                                 refresh_history(entries, status, notification_id);
                             },
                             on_toggle_pin: move |id: i64| {
+                                tracing::debug!(action = "toggle_pin", id, "UI action requested");
                                 match open_service().and_then(|service| service.toggle_pinned(id)) {
                                     Ok(()) => show_toast(status, notification_id, "Pin updated"),
-                                    Err(error) => show_toast(status, notification_id, format!("Update error: {error}")),
+                                    Err(error) => {
+                                        crate::diagnostics::report_error("update clipboard entry pin", &error);
+                                        show_toast(status, notification_id, format!("Update error: {error}"));
+                                    }
                                 }
                                 refresh_history(entries, status, notification_id);
                             },
@@ -181,7 +209,10 @@ fn refresh_history(
     match open_service().and_then(|service| service.recent_entries(200)) {
         Ok(history) if *entries.read() != history => entries.set(history),
         Ok(_) => {}
-        Err(error) => show_toast(status, notification_id, format!("History error: {error}")),
+        Err(error) => {
+            crate::diagnostics::report_error("refresh clipboard history", &error);
+            show_toast(status, notification_id, format!("History error: {error}"));
+        }
     }
 }
 
