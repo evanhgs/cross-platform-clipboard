@@ -27,7 +27,7 @@ pub fn start_text_watcher(interval: Duration) {
                 log::error!("unable to access the system clipboard");
                 return;
             };
-            let mut previous = String::new();
+            let mut previous = clipboard.get_text().unwrap_or_default();
 
             loop {
                 if let Ok(text) = clipboard.get_text() {
