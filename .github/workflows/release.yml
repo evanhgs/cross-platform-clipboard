@@ -61,7 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: clipboard-history-windows-x64
-          path: target/dx/**/*.exe
+          path: target/dx/**/bundle/windows/nsis/*-setup.exe
           if-no-files-found: error
 
   publish:
@@ -80,7 +80,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          mapfile -t packages < <(find release-assets -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' \))
+          mapfile -t packages < <(find release-assets -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*-setup.exe' \))
           test "${#packages[@]}" -gt 0
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
             # Delete matching assets first. This is more reliable than
