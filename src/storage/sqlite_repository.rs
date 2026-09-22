@@ -185,7 +185,7 @@ impl SqliteRepository {
         let limit = i64::try_from(limit).context("limit is too large for SQLite")?;
         let mut statement = self.connection.prepare(
             "SELECT id, content_type, text_content, image_blob, image_width, image_height, content_hash, pinned, created_at
-             FROM clipboard_entries ORDER BY pinned DESC, created_at DESC, id DESC LIMIT ?1",
+             FROM clipboard_entries ORDER BY created_at DESC, id DESC LIMIT ?1",
         )?;
         let entries = statement.query_map([limit], ClipboardEntry::from_row)?;
         entries

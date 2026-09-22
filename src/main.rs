@@ -24,7 +24,13 @@ fn main() {
     }
 
     let config = dioxus::desktop::Config::new()
-        .with_window(dioxus::desktop::WindowBuilder::new().with_visible(!background))
+        .with_window(
+            dioxus::desktop::WindowBuilder::new()
+                .with_title("Clipboard History")
+                .with_visible(!background),
+        )
+        .with_menu(None)
+        .with_disable_context_menu(true)
         .with_icon(
             dioxus::desktop::icon_from_memory(include_bytes!("../assets/clipboard-logo.png"))
                 .expect("Clipboard logo must be a valid PNG"),

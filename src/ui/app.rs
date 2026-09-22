@@ -32,7 +32,10 @@ pub fn App() -> Element {
                 .ok();
         dioxus::desktop::trayicon::init_tray_icon(menu, icon)
     });
-    dioxus::desktop::use_tray_menu_event_handler(move |event| match event.id().as_ref() {
+    // `tray_icon::menu` is backed by `muda`; Dioxus forwards its menu clicks as
+    // `MudaMenuEvent`, not `TrayMenuEvent`. Listening on the generic menu hook
+    // makes the actions work with GNOME's AppIndicator implementation.
+    dioxus::desktop::use_muda_event_handler(move |event| match event.id().as_ref() {
         "clipboard-show" => shortcut::show_window(),
         "clipboard-hide" => shortcut::hide_window(),
         "clipboard-quit" => std::process::exit(0),
@@ -52,8 +55,13 @@ pub fn App() -> Element {
         }
     });
 
-    let visible_entries = entries.read().clone();
-    let pinned_entries = visible_entries
+    let all_entries = entries.read().clone();
+    let history_entries = all_entries
+        .iter()
+        .filter(|entry| !entry.pinned)
+        .cloned()
+        .collect::<Vec<_>>();
+    let pinned_entries = all_entries
         .iter()
         .filter(|entry| entry.pinned)
         .cloned()
@@ -120,7 +128,7 @@ pub fn App() -> Element {
                 Page::History | Page::Pinned => rsx! {
                     section { class: "history-page",
                         HistoryPanel {
-                            entries: if page() == Page::Pinned { pinned_entries } else { visible_entries },
+                            entries: if page() == Page::Pinned { pinned_entries } else { history_entries },
                             empty_message: if page() == Page::Pinned { "No pinned items yet." } else { "Just copy with Ctrl + C or Cmd + C" },
                             on_copy: move |text: String| {
                                 tracing::debug!(action = "copy_text", text_length = text.len(), "UI action requested");
