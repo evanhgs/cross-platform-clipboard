@@ -83,7 +83,16 @@ jobs:
           mapfile -t packages < <(find release-assets -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' \))
           test "${#packages[@]}" -gt 0
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            gh release upload "$TAG" --repo "$REPO" "${packages[@]}" --clobber
+            # Delete matching assets first. This is more reliable than
+            # `gh release upload --clobber` when GitHub has only just created
+            # an asset with the same filename.
+            for package in "${packages[@]}"; do
+              gh release delete-asset "$TAG" "$(basename "$package")" \
+                --repo "$REPO" \
+                --yes \
+                >/dev/null 2>&1 || true
+            done
+            gh release upload "$TAG" --repo "$REPO" "${packages[@]}"
           else
             gh release create "$TAG" \
               --repo "$REPO" \
