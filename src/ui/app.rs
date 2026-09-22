@@ -19,6 +19,13 @@ enum Page {
 
 #[component]
 pub fn App() -> Element {
+    if shortcut::uses_x11_shortcuts() {
+        let _x11_shortcut = dioxus::desktop::use_global_shortcut("CTRL+ALT+C", move |state| {
+            if state == dioxus::desktop::HotKeyState::Pressed {
+                shortcut::show_window();
+            }
+        });
+    }
     let _tray = use_hook(|| {
         use dioxus::desktop::trayicon::menu::{Menu, MenuItem, PredefinedMenuItem};
         let menu = Menu::new();
@@ -32,9 +39,6 @@ pub fn App() -> Element {
                 .ok();
         dioxus::desktop::trayicon::init_tray_icon(menu, icon)
     });
-    // `tray_icon::menu` is backed by `muda`; Dioxus forwards its menu clicks as
-    // `MudaMenuEvent`, not `TrayMenuEvent`. Listening on the generic menu hook
-    // makes the actions work with GNOME's AppIndicator implementation.
     dioxus::desktop::use_muda_event_handler(move |event| match event.id().as_ref() {
         "clipboard-show" => shortcut::show_window(),
         "clipboard-hide" => shortcut::hide_window(),

@@ -32,7 +32,7 @@ pub fn sync(enabled: bool) -> Result<()> {
 
 #[cfg(target_os = "linux")]
 fn sync_linux(enabled: bool) -> Result<()> {
-    install_launcher()?;
+    remove_if_exists(&user_launcher_file_path()?)?;
     let path = desktop_file_path()?;
     if enabled {
         let parent = path.parent().expect("autostart path has a parent");
@@ -102,33 +102,6 @@ fn windows_startup_command(executable: &std::path::Path) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn install_launcher() -> Result<()> {
-    let executable = env::current_exe().context("unable to determine the executable path")?;
-    let data_home = data_home()?;
-    let applications_dir = data_home.join("applications");
-    let icons_dir = data_home.join("icons/hicolor/256x256/apps");
-    fs::create_dir_all(&applications_dir).with_context(|| {
-        format!(
-            "unable to create launcher directory {}",
-            applications_dir.display()
-        )
-    })?;
-    fs::create_dir_all(&icons_dir)
-        .with_context(|| format!("unable to create icon directory {}", icons_dir.display()))?;
-
-    fs::write(
-        icons_dir.join(format!("{APP_ID}.png")),
-        include_bytes!("../assets/clipboard-logo.png"),
-    )
-    .context("unable to install the Clipboard icon")?;
-    fs::write(
-        applications_dir.join(DESKTOP_FILE),
-        launcher_entry(&executable),
-    )
-    .context("unable to install the Clipboard launcher")
-}
-
-#[cfg(target_os = "linux")]
 fn desktop_file_path() -> Result<PathBuf> {
     let config_home = match env::var_os("XDG_CONFIG_HOME") {
         Some(path) if !path.is_empty() => PathBuf::from(path),
@@ -145,6 +118,11 @@ fn data_home() -> Result<PathBuf> {
             Ok(PathBuf::from(env::var_os("HOME").context("HOME is not set")?).join(".local/share"))
         }
     }
+}
+
+#[cfg(target_os = "linux")]
+fn user_launcher_file_path() -> Result<PathBuf> {
+    Ok(data_home()?.join("applications").join(DESKTOP_FILE))
 }
 
 #[cfg(target_os = "linux")]
@@ -171,13 +149,6 @@ fn desktop_entry(executable: &std::path::Path) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn launcher_entry(executable: &std::path::Path) -> String {
-    let executable = executable.display().to_string().replace('"', "\\\"");
-    format!(
-        "[Desktop Entry]\nType=Application\nName=Clipboard\nComment=Local clipboard history\nIcon={APP_ID}\nExec=\"{executable}\" --show\nTerminal=false\nCategories=Utility;\nStartupNotify=true\n"
-    )
-}
-
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
@@ -188,13 +159,5 @@ mod tests {
             desktop_entry(std::path::Path::new("/opt/Clipboard App/clipboard"))
                 .contains("--background")
         );
-    }
-
-    #[test]
-    fn launcher_uses_the_installed_icon() {
-        assert!(launcher_entry(std::path::Path::new("/opt/clipboard"))
-            .contains("Icon=com.evan.clipboard"));
-        assert!(launcher_entry(std::path::Path::new("/opt/clipboard"))
-            .contains("Exec=\"/opt/clipboard\" --show"));
     }
 }

@@ -78,13 +78,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           mapfile -t packages < <(find release-assets -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' \))
           test "${#packages[@]}" -gt 0
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${packages[@]}" --clobber
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" --repo "$REPO" "${packages[@]}" --clobber
           else
             gh release create "$TAG" \
+              --repo "$REPO" \
               "${packages[@]}" \
               --generate-notes \
               --title "Clipboard History $TAG"

@@ -8,10 +8,6 @@ use tracing::Level;
 fn main() {
     initialize_diagnostics();
     let background = std::env::args().any(|arg| arg == "--background");
-    if shortcut::request_show() {
-        return;
-    }
-    cross_platform_clipboard::clipboard::start_clipboard_watcher(Duration::from_millis(750));
     let settings = Settings::load().unwrap_or_else(|error| {
         log::warn!("unable to load settings, using defaults: {error:#}");
         Settings::default()
@@ -22,6 +18,10 @@ fn main() {
     if let Err(error) = shortcut::sync_gnome_shortcut() {
         log::warn!("GNOME shortcut unavailable: {error:#}");
     }
+    if shortcut::request_show() {
+        return;
+    }
+    cross_platform_clipboard::clipboard::start_clipboard_watcher(Duration::from_millis(750));
 
     let config = dioxus::desktop::Config::new()
         .with_window(

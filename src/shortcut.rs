@@ -18,6 +18,17 @@ static SOCKET_STARTED: OnceLock<()> = OnceLock::new();
 
 pub const GNOME_SHORTCUT_LABEL: &str = "Ctrl + Alt + C";
 
+pub fn uses_x11_shortcuts() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("XDG_SESSION_TYPE").is_ok_and(|session| session.eq_ignore_ascii_case("x11"))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 pub fn initialize(window: Arc<Window>) -> Result<()> {
     let _ = WINDOW.set(window);
     start_show_socket()
@@ -38,6 +49,7 @@ pub fn request_show() -> bool {
 
 pub fn show_window() {
     if let Some(window) = WINDOW.get() {
+        window.set_minimized(false);
         window.set_visible(true);
         window.set_focus();
     }
