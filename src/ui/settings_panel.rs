@@ -5,12 +5,13 @@ pub fn SettingsPanel(
     start_at_login: bool,
     on_start_at_login_change: EventHandler<bool>,
     on_save: EventHandler<MouseEvent>,
+    on_clear: EventHandler<MouseEvent>,
 ) -> Element {
     rsx! {
         section { class: "settings-page",
             section { class: "settings",
-                h3 { "Background shortcut" }
-                p { "Ctrl + Alt + C opens Clipboard from anywhere in GNOME." }
+                h3 { "Background launch" }
+                p { "Clipboard stays available from the system tray while it runs." }
                 label { class: "autostart-toggle",
                     input {
                         r#type: "checkbox",
@@ -23,6 +24,15 @@ pub fn SettingsPanel(
                     class: "secondary",
                     onclick: move |event| on_save.call(event),
                     "Save startup setting"
+                }
+            }
+            section { class: "settings danger-zone",
+                h3 { "History" }
+                p { "Remove every clipboard item that is not pinned." }
+                button {
+                    class: "danger",
+                    onclick: move |event| on_clear.call(event),
+                    "Clear"
                 }
             }
         }

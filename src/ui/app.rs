@@ -1,14 +1,14 @@
 use dioxus::prelude::*;
 
 use crate::application::ClipboardService;
-use crate::clipboard::{capture_image, copy_image, copy_text};
+use crate::clipboard::{copy_image, copy_text};
 use crate::storage::SqliteRepository;
 use crate::{autostart, settings::Settings, shortcut};
 
 use super::history_panel::HistoryPanel;
 use super::settings_panel::SettingsPanel;
 
-static CSS: Asset = asset!("/assets/main.css");
+const MAIN_CSS: &str = include_str!("../../assets/main.css");
 
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
@@ -19,8 +19,6 @@ enum Page {
 
 #[component]
 pub fn App() -> Element {
-    // Keeping this handle in component state keeps the notification-area icon
-    // alive while the window is hidden.
     let _tray = use_hook(|| {
         use dioxus::desktop::trayicon::menu::{Menu, MenuItem, PredefinedMenuItem};
         let menu = Menu::new();
@@ -61,44 +59,10 @@ pub fn App() -> Element {
         .cloned()
         .collect::<Vec<_>>();
     rsx! {
-        document::Stylesheet { href: CSS }
+        document::Style { {MAIN_CSS} }
         main { class: "clipboard-app",
             header { class: "toolbar",
-                div {
-                    h1 { "Clipboard" }
-                }
-                div { class: "toolbar-actions",
-                    button {
-                        class: "secondary",
-                        onclick: move |_| {
-                            tracing::debug!(action = "capture_image", "UI action requested");
-                            match capture_image() {
-                                Ok(()) => show_toast(status, notification_id, "Image saved"),
-                                Err(error) => {
-                                    crate::diagnostics::report_error("capture clipboard image", &error);
-                                    show_toast(status, notification_id, format!("Image error: {error}"));
-                                }
-                            }
-                            refresh_history(entries, status, notification_id);
-                        },
-                        "Save image"
-                    }
-                    button {
-                        class: "danger",
-                        onclick: move |_| {
-                            tracing::debug!(action = "clear_history", "UI action requested");
-                            match open_service().and_then(|service| service.clear_unpinned()) {
-                                Ok(()) => show_toast(status, notification_id, "History cleared"),
-                                Err(error) => {
-                                    crate::diagnostics::report_error("clear clipboard history", &error);
-                                    show_toast(status, notification_id, format!("Clear error: {error}"));
-                                }
-                            }
-                            refresh_history(entries, status, notification_id);
-                        },
-                        "Clear"
-                    }
-                }
+
             }
             nav { class: "page-navigation", "aria-label": "Clipboard navigation",
                 button {
@@ -119,6 +83,7 @@ pub fn App() -> Element {
                     onclick: move |_| { tracing::debug!(page = "settings", "UI navigation requested"); page.set(Page::Settings) },
                     "Settings"
                 }
+
             }
             if !status.read().is_empty() {
                 aside { class: "toast", role: "status", "aria-live": "polite", "{status}" }
@@ -139,11 +104,21 @@ pub fn App() -> Element {
                                 }
                             }
                         },
+                        on_clear: move |_| {
+                            tracing::debug!(action = "clear_history", "UI action requested");
+                            match open_service().and_then(|service| service.clear_unpinned()) {
+                                Ok(()) => show_toast(status, notification_id, "History cleared"),
+                                Err(error) => {
+                                    crate::diagnostics::report_error("clear clipboard history", &error);
+                                    show_toast(status, notification_id, format!("Clear error: {error}"));
+                                }
+                            }
+                            refresh_history(entries, status, notification_id);
+                        },
                     }
                 },
                 Page::History | Page::Pinned => rsx! {
                     section { class: "history-page",
-                        h2 { if page() == Page::Pinned { "Pinned items" } else { "History" } }
                         HistoryPanel {
                             entries: if page() == Page::Pinned { pinned_entries } else { visible_entries },
                             empty_message: if page() == Page::Pinned { "No pinned items yet." } else { "Just copy with Ctrl + C or Cmd + C" },
@@ -157,9 +132,9 @@ pub fn App() -> Element {
                                     }
                                 }
                             },
-                            on_copy_image: move |path: String| {
-                                tracing::debug!(action = "copy_image", path = %path, "UI action requested");
-                                match copy_image(std::path::Path::new(&path)) {
+                            on_copy_image: move |image: crate::domain::StoredImage| {
+                                tracing::debug!(action = "copy_image", width = image.width, height = image.height, "UI action requested");
+                                match copy_image(image) {
                                     Ok(()) => show_toast(status, notification_id, "Image copied"),
                                     Err(error) => {
                                         crate::diagnostics::report_error("copy clipboard image", &error);

@@ -21,7 +21,6 @@ button { margin: 2px; }
     max-width: min(360px, calc(100vw - 32px));
     margin: 0;
     padding: 10px 14px;
-    border-radius: 8px;
     background: #1f2937;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     color: #fff;
@@ -60,21 +59,16 @@ button { margin: 2px; }
 .entry-actions { flex-wrap: nowrap; }
 
 .icon-button {
-    display: inline-grid;
-    width: 28px;
-    height: 28px;
-    place-items: center;
-    padding: 4px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
+    min-height: 28px;
+    padding: 4px 8px;
+    border: 1px solid #bfc7d6;
+    background: #fff;
     cursor: pointer;
 }
 
 .icon-button:hover { background: #eef1f5; }
-.icon-button img { display: block; width: 18px; height: 18px; object-fit: contain; }
-.pin-button img { transform: rotate(-18deg); }
 .danger:hover { background: #fff0f0; }
+.danger-zone { border-top: 1px solid #d8dce5; }
 
 .settings {
     margin: 16px 0;
@@ -95,7 +89,6 @@ button { margin: 2px; }
     min-width: 12rem;
     padding: 6px 8px;
     border: 1px solid #bfc7d6;
-    border-radius: 6px;
 }
 
 .autostart-toggle {
@@ -112,4 +105,23 @@ button { margin: 2px; }
     text-align: left;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+    border: 1px solid #bfbfbf;
+    background: #e2e3e5;
+}
+
+.entry-image {
+    display: block;
+    max-width: 100%;
+    margin: 4px 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.entry-preview {
+    display: block;
+    max-width: min(100%, 320px);
+    max-height: 220px;
+    object-fit: contain;
 }

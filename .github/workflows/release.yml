@@ -1,0 +1,91 @@
+name: Release desktop packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  DIOXUS_VERSION: 0.7.10
+
+jobs:
+  bundle-linux:
+    name: Bundle Linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            pkg-config \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            libxdo-dev \
+            libssl-dev
+      - name: Install Dioxus CLI
+        run: cargo install dioxus-cli --version $DIOXUS_VERSION --locked
+      - name: Create Linux packages
+        run: dx bundle --desktop --release --package-types deb --package-types appimage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clipboard-history-linux
+          path: |
+            target/dx/**/*.deb
+            target/dx/**/*.AppImage
+          if-no-files-found: error
+
+  bundle-windows:
+    name: Bundle Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Dioxus CLI
+        shell: pwsh
+        run: cargo install dioxus-cli --version $env:DIOXUS_VERSION --locked
+      - name: Create self-contained Windows installer
+        shell: pwsh
+        run: dx bundle --desktop --release --package-types nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clipboard-history-windows-x64
+          path: target/dx/**/*.exe
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [bundle-linux, bundle-windows]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mapfile -t packages < <(find release-assets -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' \))
+          test "${#packages[@]}" -gt 0
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${packages[@]}" --clobber
+          else
+            gh release create "$TAG" \
+              "${packages[@]}" \
+              --generate-notes \
+              --title "Clipboard History $TAG"
+          fi

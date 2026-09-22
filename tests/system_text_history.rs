@@ -28,7 +28,7 @@ fn identical_text_is_saved_only_once() {
 }
 
 #[test]
-fn rgba_image_is_saved_as_a_local_png() {
+fn rgba_image_is_saved_as_a_sqlite_blob() {
     let database = TestDatabase::new("image");
     let service = ClipboardService::new(SqliteRepository::open_at(database.path()).unwrap());
 
@@ -37,6 +37,8 @@ fn rgba_image_is_saved_as_a_local_png() {
         .unwrap();
 
     let entry = service.recent_entries(10).unwrap().pop().unwrap();
-    let path = entry.image_path.unwrap();
-    assert!(std::path::Path::new(&path).is_file());
+    let image = entry.image.unwrap();
+    assert_eq!(image.width, 2);
+    assert_eq!(image.height, 1);
+    assert_eq!(image.rgba, vec![255, 0, 0, 255, 0, 255, 0, 255]);
 }

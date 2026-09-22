@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::thread;
 use std::time::Duration;
 
@@ -8,16 +7,10 @@ use arboard::Clipboard;
 use crate::application::ClipboardService;
 use crate::storage::SqliteRepository;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ClipboardContent {
-    Text(String),
-    ImagePath(String),
-}
-
-pub fn start_text_watcher(interval: Duration) {
-    tracing::debug!(?interval, "starting clipboard text watcher");
+pub fn start_clipboard_watcher(interval: Duration) {
+    tracing::debug!(?interval, "starting clipboard watcher");
     thread::Builder::new()
-        .name("clipboard-text-watcher".into())
+        .name("clipboard-watcher".into())
         .spawn(move || {
             let Ok(repository) = SqliteRepository::open() else {
                 log::error!("unable to open clipboard database from watcher");
@@ -45,31 +38,21 @@ pub fn start_text_watcher(interval: Duration) {
                     Ok(_) => tracing::trace!("clipboard is unchanged"),
                     Err(error) => tracing::trace!(error = %error, "clipboard text is unavailable"),
                 }
+                if let Ok(image) = clipboard.get_image() {
+                    match (u32::try_from(image.width), u32::try_from(image.height)) {
+                        (Ok(width), Ok(height)) => {
+                            if let Err(error) = service.record_rgba_image(image.bytes.into_owned(), width, height) {
+                                crate::diagnostics::report_error("record clipboard image", &error);
+                            }
+                        }
+                        _ => log::warn!("clipboard image dimensions are too large to store"),
+                    }
+                }
                 tracing::trace!(?interval, "clipboard watcher sleeping");
                 thread::sleep(interval);
             }
         })
         .expect("unable to start clipboard watcher");
-}
-
-pub fn capture_image() -> Result<()> {
-    tracing::debug!("capturing image from system clipboard");
-    let image = Clipboard::new()
-        .context("unable to access the system clipboard")?
-        .get_image()
-        .context("the clipboard does not contain a supported image")?;
-    let repository = SqliteRepository::open()?;
-    tracing::debug!(
-        width = image.width,
-        height = image.height,
-        byte_length = image.bytes.len(),
-        "clipboard image read"
-    );
-    ClipboardService::new(repository).record_rgba_image(
-        image.bytes.into_owned(),
-        image.width as u32,
-        image.height as u32,
-    )
 }
 
 pub fn copy_text(text: &str) -> Result<()> {
@@ -80,18 +63,29 @@ pub fn copy_text(text: &str) -> Result<()> {
         .context("unable to write text to the system clipboard")
 }
 
-pub fn copy_image(path: &std::path::Path) -> Result<()> {
-    tracing::debug!(path = %path.display(), "writing image to system clipboard");
-    let image = image::open(path)
-        .with_context(|| format!("unable to open saved image at {}", path.display()))?
-        .to_rgba8();
-    let (width, height) = image.dimensions();
+pub fn copy_image(image: crate::domain::StoredImage) -> Result<()> {
+    let width: usize = usize::try_from(image.width).context("saved image width is invalid")?;
+    let height: usize = usize::try_from(image.height).context("saved image height is invalid")?;
+    let expected_length = width
+        .checked_mul(height)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .context("saved image dimensions are too large")?;
+    anyhow::ensure!(
+        image.rgba.len() == expected_length,
+        "saved image pixels are invalid"
+    );
+    tracing::debug!(
+        width,
+        height,
+        byte_length = image.rgba.len(),
+        "writing image to system clipboard"
+    );
     Clipboard::new()
         .context("unable to access the system clipboard")?
         .set_image(arboard::ImageData {
-            width: width as usize,
-            height: height as usize,
-            bytes: Cow::Owned(image.into_raw()),
+            width,
+            height,
+            bytes: image.rgba.into(),
         })
         .context("unable to write image to the system clipboard")
 }

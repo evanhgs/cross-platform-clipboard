@@ -1,9 +1,6 @@
-use anyhow::{Context, Result};
-use std::fs;
-
 use crate::domain::ClipboardEntry;
 use crate::storage::SqliteRepository;
-use image::RgbaImage;
+use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 
 pub struct ClipboardService {
@@ -47,21 +44,33 @@ impl ClipboardService {
             return Ok(());
         }
 
-        let byte_length = rgba.len();
-        let image = RgbaImage::from_raw(width, height, rgba)
-            .context("clipboard image dimensions do not match its pixels")?;
-        let image_path = self.repository.images_dir().join(format!("{hash}.png"));
-        tracing::debug!(width, height, byte_length, image_path = %image_path.display(), "recording clipboard image");
-        image.save(&image_path)?;
-        self.repository.insert_image(&image_path, &hash)
+        let expected_length = usize::try_from(width)
+            .ok()
+            .and_then(|width| {
+                usize::try_from(height)
+                    .ok()
+                    .and_then(|height| width.checked_mul(height))
+            })
+            .and_then(|pixels| pixels.checked_mul(4))
+            .context("clipboard image dimensions are too large")?;
+        anyhow::ensure!(
+            rgba.len() == expected_length,
+            "clipboard image dimensions do not match its pixels"
+        );
+        let width = i64::from(width);
+        let height = i64::from(height);
+        tracing::debug!(
+            width,
+            height,
+            byte_length = rgba.len(),
+            "recording clipboard image in SQLite"
+        );
+        self.repository.insert_image(&rgba, width, height, &hash)
     }
 
     pub fn delete_entry(&self, id: i64) -> Result<()> {
         tracing::debug!(id, "deleting clipboard entry");
-        if let Some(path) = self.repository.delete_entry(id)? {
-            let _ = fs::remove_file(path);
-        }
-        Ok(())
+        self.repository.delete_entry(id)
     }
 
     pub fn toggle_pinned(&self, id: i64) -> Result<()> {
@@ -71,10 +80,7 @@ impl ClipboardService {
 
     pub fn clear_unpinned(&self) -> Result<()> {
         tracing::debug!("clearing unpinned clipboard entries");
-        for path in self.repository.clear_unpinned()? {
-            let _ = fs::remove_file(path);
-        }
-        Ok(())
+        self.repository.clear_unpinned()
     }
 }
 

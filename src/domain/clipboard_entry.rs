@@ -5,10 +5,17 @@ pub struct ClipboardEntry {
     pub id: i64,
     pub kind: EntryKind,
     pub text: Option<String>,
-    pub image_path: Option<String>,
+    pub image: Option<StoredImage>,
     pub content_hash: String,
     pub pinned: bool,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredImage {
+    pub rgba: Vec<u8>,
+    pub width: i64,
+    pub height: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,10 +51,19 @@ impl ClipboardEntry {
             id: row.get(0)?,
             kind,
             text: row.get(2)?,
-            image_path: row.get(3)?,
-            content_hash: row.get(4)?,
-            pinned: row.get::<_, i64>(5)? != 0,
-            created_at: row.get(6)?,
+            image: match (row.get(3)?, row.get(4)?, row.get(5)?) {
+                (Some(rgba), Some(width), Some(height)) if width > 0 && height > 0 => {
+                    Some(StoredImage {
+                        rgba,
+                        width,
+                        height,
+                    })
+                }
+                _ => None,
+            },
+            content_hash: row.get(6)?,
+            pinned: row.get::<_, i64>(7)? != 0,
+            created_at: row.get(8)?,
         })
     }
 }
@@ -63,7 +79,7 @@ mod tests {
         let connection = Connection::open_in_memory().unwrap();
         let entry = connection
             .query_row(
-                "SELECT 1, 'text', 'bonjour', NULL, 'hash', 0, 123",
+                "SELECT 1, 'text', 'bonjour', NULL, NULL, NULL, 'hash', 0, 123",
                 [],
                 ClipboardEntry::from_row,
             )

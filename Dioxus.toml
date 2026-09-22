@@ -17,6 +17,9 @@ long_description = "A local desktop application for browsing and restoring clipb
 [bundle.deb]
 depends = ["libgtk-3-0", "libwebkit2gtk-4.1-0", "libayatana-appindicator3-1"]
 
+[bundle.windows]
+webview_install_mode = { OfflineInstaller = { silent = true } }
+
 # include `assets` in web platform
 [web.resource]
 
